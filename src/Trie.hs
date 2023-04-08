@@ -2,31 +2,36 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Trie
-    ( Dict
-    , Trie
-    , load
-    , renderDict
-    , unload
-    , dictionary
-    , printLine
-    , singleton
-    , main
-    )
+module Trie (
+    Dict,
+    Trie,
+    load,
+    renderDict,
+    unload,
+    dictionary,
+    printLine,
+    singleton,
+    main,
+    anagrams,
+)
 where
 
+import Data.Bifunctor (second)
+import Data.List (group, mapAccumL, sort, tails)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import System.Console.ANSI
-    ( Color (Green)
-    , ColorIntensity (Dull)
-    , ConsoleLayer (Foreground)
-    , SGR (Reset, SetColor)
-    , setSGRCode
-    )
+import Data.Set (Set)
+import Data.Set qualified as Set
+import System.Console.ANSI (
+    Color (Green),
+    ColorIntensity (Dull),
+    ConsoleLayer (Foreground),
+    SGR (Reset, SetColor),
+    setSGRCode,
+ )
 
 -- | A trie is a recursive map from elements to tries.
-newtype Trie a = Trie (Map a (Trie a)) deriving (Eq, Show)
+newtype Trie a = Trie {trieMap :: Map a (Trie a)} deriving (Eq, Show)
 
 instance Ord a => Semigroup (Trie a) where
     Trie a <> Trie b = Trie $ Map.unionWith (<>) a b
@@ -79,8 +84,9 @@ pattern IsGraph <- (flip elem [Start, Vert, Space] -> True)
 
 type Dict = Trie Char
 
--- | Render a trie as a list of strings, where each string is a line of the
--- tree.
+{- | Render a trie as a list of strings, where each string is a line of the
+tree.
+-}
 render :: Dict -> [String]
 render (Trie m) = do
     -- list monad
@@ -191,4 +197,64 @@ printLine = putStrLn . concatMap change
 --------------------------------------------------------------------------------
 
 main :: IO ()
-main = mapM_ printLine $ renderDict $ load dictionary
+main =
+    mapM_ printLine $ renderDict $ load dictionary
+
+loadFile :: IO Dict
+loadFile = do
+    load . filter (\x -> length x > 0) . lines <$> readFile "data/words.txt"
+
+renderBig = do
+    t <- loadFile
+    mapM_ printLine $ renderDict t
+
+pattern Leaf :: Trie k
+pattern Leaf <- (Map.null . trieMap -> True)
+
+consumeLetters :: String -> String -> Dict -> [(String, String)]
+consumeLetters rest path Leaf = [(reverse path, rest)]
+consumeLetters xs path (Trie t) = do
+    let l = length xs
+    y : ys <- take l . fmap (take l) $ tails $ cycle xs
+    case Map.lookup y t of
+        Nothing -> []
+        Just t' -> consumeLetters ys (y : path) t'
+
+type Solution = Map String Int
+
+addWord :: String -> Solution -> Solution
+addWord x = Map.insertWith (+) x 1
+
+consumeAllLetters :: String -> Dict -> Solution -> Set Solution -> (Set Solution, [Solution])
+consumeAllLetters xs t actual memory = second concat $ mapAccumL go memory $ consumeLetters xs [] t
+  where
+    go memory (path, rest) =
+        let new = addWord path actual
+         in if Set.member new memory
+                then (memory, [])
+                else
+                    let newMemory = Set.insert new memory
+                     in case rest of
+                            [] -> (newMemory, [new])
+                            _ ->
+                                let
+                                    (newMemory', newSolutions) = consumeAllLetters rest t new newMemory
+                                 in
+                                    (newMemory', newSolutions)
+
+{-             (path, rest) <- consumeLetters xs [] t
+            let new = addWord path actual
+            if Set.member new memory
+                then []
+                else
+                    let newMemory = Set.insert new memory
+                    in case rest of
+                            [] -> (newMemory, [new])
+                            _ -> let
+                                consumeAllLetters rest t new newMemory -}
+
+anagrams :: String -> Dict -> [String]
+anagrams xs t = unwords . solutionWords <$> snd (consumeAllLetters xs t Map.empty Set.empty)
+
+solutionWords :: Solution -> [String]
+solutionWords = concatMap (\(w, n) -> replicate n w) . Map.assocs
