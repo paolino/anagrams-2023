@@ -1,6 +1,6 @@
 module Main (main) where
 
-import qualified Trie
+import qualified Anagrams
 
 main :: IO ()
-main = Trie.main
+main = Anagrams.main

@@ -26,6 +26,9 @@ dependencies:
 - protolude
 - pretty-simple
 - ansi-terminal
+- haskeline
+- directory
+- filepath
 
 ghc-options:
 - -Wall
@@ -37,6 +40,7 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -Wredundant-constraints
+- -O2
 
 library:
   source-dirs: src
