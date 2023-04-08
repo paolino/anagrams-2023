@@ -1,4 +1,6 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Anagrams
     ( anagrams
@@ -19,7 +21,8 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Dict (Dict)
 import System.Console.Haskeline
-    ( defaultSettings
+    ( InputT
+    , defaultSettings
     , getInputLine
     , outputStrLn
     , runInputT
@@ -99,12 +102,13 @@ solution2Words = concatMap (\(w, n) -> replicate n w) . Map.assocs
 -- Load a dictionary from a file.
 loadFile :: FilePath -> IO Dict
 loadFile fp = do
-    load . filter (\x -> length x > 3) . lines <$> readFile ("data" </> fp <.> "txt")
+    load
+        . filter (\x -> length x > 3)
+        . lines
+        <$> readFile ("data" </> fp <.> "txt")
 
 listDictionary :: IO [FilePath]
-listDictionary =
-    mapMaybe (stripExtension ".txt")
-        <$> listDirectory "data"
+listDictionary = mapMaybe (stripExtension ".txt") <$> listDirectory "data"
 
 renderListOfDictionary :: [(Int, FilePath)] -> String
 renderListOfDictionary =
@@ -115,34 +119,44 @@ renderListOfDictionary =
 main :: IO ()
 main = do
     runInputT defaultSettings
-        $ fix
-        $ \loopFile -> do
-            dictNames <- liftIO listDictionary
-            let dictNames' = zip [1 ..] dictNames
-            outputStrLn "\n\nAvailable dictionaries:"
-            outputStrLn $ renderListOfDictionary dictNames'
-            mfile <- getInputLine "Enter a number to select a dictionary: "
-            case mfile of
-                Nothing -> return ()
-                Just numberString -> do
+        $ interaction
+            do
+                dictNames <- liftIO listDictionary
+                let dictNamesMap = zip [1 :: Int  ..] dictNames
+                outputStrLn "\n\nAvailable dictionaries:"
+                outputStrLn $ renderListOfDictionary dictNamesMap
+                pure dictNamesMap
+            do "Enter a number to select a dictionary: "
+            do
+                \loopFile dictNamesMap numberString -> do
                     case reads numberString of
                         [(number, "")] -> do
-                            case lookup number dictNames' of
+                            case lookup number dictNamesMap of
                                 Nothing -> do
                                     outputStrLn "Invalid number !"
                                     loopFile
                                 Just dictName -> do
                                     t <- liftIO $ loadFile dictName
-                                    fix
-                                        $ \loop -> do
-                                            minput <- getInputLine "Enter a string to anagram: "
-                                            case minput of
-                                                Nothing -> return ()
-                                                Just input -> do
-                                                    forM_ (anagrams (filter isAlpha input) t) outputStrLn
-                                                    outputStrLn "-- End of anagrams --\n"
-                                                    loop
-                                    loopFile
+                                    interaction
+                                        do pure ()
+                                        do "Enter a string to anagram: "
+                                        do
+                                            \_ _ input -> do
+                                                forM_ (anagrams (filter isAlpha input) t) outputStrLn
+                                                outputStrLn "-- End of anagrams --\n"
                         _ -> do
                             outputStrLn "Not a number !"
                             loopFile
+
+-- run an interactive prompt
+interaction
+    :: InputT IO pre -- ^ a computation to run before the prompt
+    -> String -- ^ the prompt
+    -> (InputT IO () -> pre -> String -> InputT IO ()) -- ^ the action to run on each input
+    -> InputT IO ()
+interaction pre prompt f = fix $ \loop -> do
+    preValue <- pre
+    minput <- getInputLine prompt
+    case minput of
+        Nothing -> return ()
+        Just input -> f loop preValue input >> loop
