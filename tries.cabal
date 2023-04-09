@@ -34,12 +34,14 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
   build-depends:
-      ansi-terminal
+      QuickCheck
+    , ansi-terminal
     , base >=4.7 && <5
     , containers
     , directory
     , filepath
     , haskeline
+    , hspec
     , mtl
     , pretty-simple
     , protolude
@@ -53,12 +55,14 @@ executable tries-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      ansi-terminal
+      QuickCheck
+    , ansi-terminal
     , base >=4.7 && <5
     , containers
     , directory
     , filepath
     , haskeline
+    , hspec
     , mtl
     , pretty-simple
     , protolude
@@ -74,12 +78,14 @@ test-suite tries-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      ansi-terminal
+      QuickCheck
+    , ansi-terminal
     , base >=4.7 && <5
     , containers
     , directory
     , filepath
     , haskeline
+    , hspec
     , mtl
     , pretty-simple
     , protolude
