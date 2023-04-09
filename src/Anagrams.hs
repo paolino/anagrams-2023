@@ -8,8 +8,15 @@ module Anagrams
     )
 where
 
-import Control.Monad (forM_)
-import Control.Monad.IO.Class (liftIO)
+import Control.Applicative (Alternative (..))
+import Control.Monad.Cont
+    ( ContT (runContT)
+    , MonadCont (..)
+    , MonadIO (..)
+    , MonadTrans (lift)
+    , forM_
+    )
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Bifunctor (second)
 import Data.Char (isAlpha)
 import Data.Function (fix)
@@ -99,64 +106,112 @@ solution2Words = concatMap (\(w, n) -> replicate n w) . Map.assocs
 -- main
 --------------------------------------------------------------------------------
 
--- Load a dictionary from a file.
-loadFile :: FilePath -> IO Dict
-loadFile fp = do
+-- Load a dictionary from a file with a lower limits for letters in the words.
+loadFile :: FilePath -> Int -> IO Dict
+loadFile fp l = do
     load
-        . filter (\x -> length x > 3)
+        . filter (\x -> length x > l)
         . lines
         <$> readFile ("data" </> fp <.> "txt")
 
+-- List all available dictionaries files in the "data" directory.
 listDictionary :: IO [FilePath]
 listDictionary = mapMaybe (stripExtension ".txt") <$> listDirectory "data"
 
+-- Render a list of dictionaries for the user to select one.
 renderListOfDictionary :: [(Int, FilePath)] -> String
-renderListOfDictionary =
-    unlines
-        . fmap (\(i, x) -> show i ++ ". " ++ x)
+renderListOfDictionary = unlines . fmap (\(i, x) -> show i ++ ". " ++ x)
 
--- | Load a dictionary and run an interactive anagram finder.
-main :: IO ()
-main = do
-    runInputT defaultSettings
-        $ interaction
-            do
-                dictNames <- liftIO listDictionary
-                let dictNamesMap = zip [1 :: Int  ..] dictNames
-                outputStrLn "\n\nAvailable dictionaries:"
-                outputStrLn $ renderListOfDictionary dictNamesMap
-                pure dictNamesMap
+-- Print a list of dictionaries and ask the user to select one.
+listDictionaries :: InputT IO [(Int, FilePath)]
+listDictionaries = do
+    dictNames <- liftIO listDictionary
+    let dictNamesMap = zip [1 :: Int ..] dictNames
+    outputStrLn "\nAvailable dictionaries:\n"
+    outputStrLn $ renderListOfDictionary dictNamesMap
+    pure dictNamesMap
+
+-- Parse a string as anything using Read instance but print a complaint when not possible.
+parseAny :: (Read a, MonadIO m) => String -> InputT m (Maybe a)
+parseAny input = do
+    case reads input of
+        [(anA, "")] -> do
+            pure $ Just anA
+        _ -> do
+            outputStrLn "Not a valid input !"
+            pure Nothing
+
+-- Console inteaction monad.
+type Interaction = ContT () (InputT IO)
+
+-- Ask the user to enter a value and parse it. If the action fails,
+-- the user is asked to enter a new value. If the user enters CTRL-D,
+-- the interaction is aborted.
+acquireValue
+    :: Interaction b
+    -- ^ Abort the interaction.
+    -> InputT IO a
+    -- ^ Pre action creates the context.
+    -> String
+    -- ^ Prompt.
+    -> (String -> a -> InputT IO (Maybe b))
+    -- ^ What to do with the input sting and the context. Nothing means
+    -- the user entered an unacceptable value.
+    -> Interaction b
+acquireValue q pre prompt parse = fix $ \loop -> do
+    x <- lift pre
+    minput <- lift $ getInputLine $ "\n" <> prompt
+    case minput of
+        Nothing -> q
+        Just input -> do
+            mr <- lift $ parse input x
+            maybe loop pure mr
+
+-- Run an action indefinitely. The action receives a kill action that
+-- aborts the loop.
+withCtrlD :: (Interaction b -> Interaction ()) -> Interaction ()
+withCtrlD f = callCC $ \kill -> fix $ \loop -> f (kill ()) >> loop
+
+-- Main program. The user is asked to select a dictionary, then a
+-- minimum number of letters for words, then a string to find anagrams
+-- for.
+-- All queries are aborted when the user enters CTRL-D, which resets the program
+-- to the previous query.
+-- The program is aborted when the user enters CTRL-D at the first query.
+program :: Interaction ()
+program = do
+    withCtrlD $ \killProgram -> do
+        d <- acquireValue
+            do killProgram
+            do listDictionaries
             do "Enter a number to select a dictionary: "
             do
-                \loopFile dictNamesMap numberString -> do
-                    case reads numberString of
-                        [(number, "")] -> do
-                            case lookup number dictNamesMap of
-                                Nothing -> do
-                                    outputStrLn "Invalid number !"
-                                    loopFile
-                                Just dictName -> do
-                                    t <- liftIO $ loadFile dictName
-                                    interaction
-                                        do pure ()
-                                        do "Enter a string to anagram: "
-                                        do
-                                            \_ _ input -> do
-                                                forM_ (anagrams (filter isAlpha input) t) outputStrLn
-                                                outputStrLn "-- End of anagrams --\n"
-                        _ -> do
-                            outputStrLn "Not a number !"
-                            loopFile
+                \ns ds -> runMaybeT $ do
+                    n <- MaybeT $ parseAny ns
+                    case lookup n ds of
+                        Nothing -> do
+                            lift $ outputStrLn "Invalid number !"
+                            empty
+                        Just dictName -> do
+                            lift $ outputStrLn $ "... Loading dictionary " ++ dictName <> "\n"
+                            pure dictName
+        withCtrlD $ \killLimit -> do
+            j <- acquireValue
+                do killLimit
+                do pure ()
+                do "Enter the minimum number of letters for words: "
+                do \s _ -> parseAny s
+            trie <- liftIO $ loadFile d j
+            lift $ outputStrLn "... Dictionary loaded.\n"
+            withCtrlD $ \killAnagram -> do
+                w <- acquireValue
+                    do killAnagram
+                    do pure ()
+                    do "Enter a string to anagram: "
+                    do \s _ -> pure $ Just $ filter isAlpha s
+                forM_ (anagrams w trie) do
+                    \x -> do
+                        lift $ outputStrLn x
 
--- run an interactive prompt
-interaction
-    :: InputT IO pre -- ^ a computation to run before the prompt
-    -> String -- ^ the prompt
-    -> (InputT IO () -> pre -> String -> InputT IO ()) -- ^ the action to run on each input
-    -> InputT IO ()
-interaction pre prompt f = fix $ \loop -> do
-    preValue <- pre
-    minput <- getInputLine prompt
-    case minput of
-        Nothing -> return ()
-        Just input -> f loop preValue input >> loop
+main :: IO ()
+main = runInputT defaultSettings $ runContT program pure

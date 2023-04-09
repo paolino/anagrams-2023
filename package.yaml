@@ -31,6 +31,8 @@ dependencies:
 - filepath
 - hspec
 - QuickCheck
+- mtl
+- transformers
 
 ghc-options:
 - -Wall
