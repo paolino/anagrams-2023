@@ -10,7 +10,7 @@ where
 
 import Control.Applicative (Alternative (..))
 import Control.Monad.Cont
-    ( ContT (runContT)
+    ( ContT (ContT, runContT)
     , MonadCont (..)
     , MonadIO (..)
     , MonadTrans (lift)
@@ -179,39 +179,37 @@ withCtrlD f = callCC $ \kill -> fix $ \loop -> f (kill ()) >> loop
 -- to the previous query.
 -- The program is aborted when the user enters CTRL-D at the first query.
 program :: Interaction ()
-program = do
-    withCtrlD $ \killProgram -> do
-        d <- acquireValue
-            do killProgram
-            do listDictionaries
-            do "Enter a number to select a dictionary: "
-            do
-                \ns ds -> runMaybeT $ do
-                    n <- MaybeT $ parseAny ns
-                    case lookup n ds of
-                        Nothing -> do
-                            lift $ outputStrLn "Invalid number !"
-                            empty
-                        Just dictName -> do
-                            lift $ outputStrLn $ "... Loading dictionary " ++ dictName <> "\n"
-                            pure dictName
-        withCtrlD $ \killLimit -> do
-            j <- acquireValue
-                do killLimit
-                do pure ()
-                do "Enter the minimum number of letters for words: "
-                do \s _ -> parseAny s
-            trie <- liftIO $ loadFile d j
-            lift $ outputStrLn "... Dictionary loaded.\n"
-            withCtrlD $ \killAnagram -> do
-                w <- acquireValue
-                    do killAnagram
-                    do pure ()
-                    do "Enter a string to anagram: "
-                    do \s _ -> pure $ Just $ filter isAlpha s
-                forM_ (anagrams w trie) do
-                    \x -> do
-                        lift $ outputStrLn x
+program = flip runContT pure $ do
+    killProgram <- ContT withCtrlD
+    d <- lift $ acquireValue
+        do killProgram
+        do listDictionaries
+        do "Enter a number to select a dictionary: "
+        do
+            \ns ds -> runMaybeT $ do
+                n <- MaybeT $ parseAny ns
+                case lookup n ds of
+                    Nothing -> do
+                        lift $ outputStrLn "Invalid number !"
+                        empty
+                    Just dictName -> do
+                        lift $ outputStrLn $ "... Loading dictionary " ++ dictName <> "\n"
+                        pure dictName
+    killLimit <- ContT withCtrlD
+    j <- lift $ acquireValue
+        do killLimit
+        do pure ()
+        do "Enter the minimum number of letters for words: "
+        do \s _ -> parseAny s
+    trie <- liftIO $ loadFile d j
+    lift . lift $ outputStrLn "... Dictionary loaded.\n"
+    killAnagram <- ContT withCtrlD
+    w <- lift $ acquireValue
+        do killAnagram
+        do pure ()
+        do "Enter a string to anagram: "
+        do \s _ -> pure $ Just $ filter isAlpha s
+    forM_ (anagrams w trie) $ lift . lift . outputStrLn
 
 main :: IO ()
 main = runInputT defaultSettings $ runContT program pure
