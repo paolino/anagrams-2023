@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           tries
+name:           anagrams2023
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/tries#readme>
 homepage:       https://github.com/githubuser/tries#readme
@@ -29,7 +29,7 @@ library
       Dict
       Trie
   other-modules:
-      Paths_tries
+      Paths_anagrams2023
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2
@@ -51,12 +51,13 @@ library
 executable tries-exe
   main-is: Main.hs
   other-modules:
-      Paths_tries
+      Paths_anagrams2023
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
+    , anagrams2023
     , ansi-terminal
     , base >=4.7 && <5
     , containers
@@ -68,19 +69,19 @@ executable tries-exe
     , pretty-simple
     , protolude
     , transformers
-    , tries
   default-language: Haskell2010
 
 test-suite tries-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_tries
+      Paths_anagrams2023
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -O2 -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
+    , anagrams2023
     , ansi-terminal
     , base >=4.7 && <5
     , containers
@@ -92,5 +93,4 @@ test-suite tries-test
     , pretty-simple
     , protolude
     , transformers
-    , tries
   default-language: Haskell2010

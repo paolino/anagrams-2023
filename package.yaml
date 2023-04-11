@@ -1,4 +1,4 @@
-name:                tries
+name:                anagrams2023
 version:             0.1.0.0
 github:              "githubuser/tries"
 license:             BSD3
@@ -58,7 +58,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - tries
+    - anagrams2023
 
 tests:
   tries-test:
@@ -69,4 +69,4 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - tries
+    - anagrams2023
