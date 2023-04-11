@@ -110,7 +110,7 @@ solution2Words = concatMap (\(w, n) -> replicate n w) . Map.assocs
 loadFile :: FilePath -> Int -> IO Dict
 loadFile fp l = do
     load
-        . filter (\x -> length x > l)
+        . filter (\x -> length x >= l)
         . lines
         <$> readFile ("data" </> fp <.> "txt")
 
